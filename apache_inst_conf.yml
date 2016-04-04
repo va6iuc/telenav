@@ -1,0 +1,34 @@
+#Install apache and change config
+---
+- hosts: "{{ hosts }}"
+  sudo: "{{ sudo }}"
+  tasks:
+  - name: Install apache
+    yum: name=httpd state=present
+    notify:
+    - restart apache
+  - name: Install PHP
+    yum: name=php state=present
+    notify:
+    - restart apache
+  - name: Ensure apache is running (and enable it at boot)
+    service: name=httpd state=started enabled=yes
+  - name: Creating new site directory
+    file: path=/var/2_gb_disk/new_html state=directory recurse=yes
+  - name: Creating index.php file with ansible_default_ipv4
+    shell: "{{ sudocmd }}echo \"<?PHP echo \\\"{{ ansible_default_ipv4.address }}\\\" ?>\" >> /var/2_gb_disk/new_html/index.php"
+    when: ansible_default_ipv4 is defined
+  - name: Get without ansible_default_ipv4 #Din motif ca pentru docker este dispus ansible_default_ipv4
+    shell: hostname --ip-address
+    register: _ip
+    when: ansible_default_ipv4 is not defined
+  - name: Creating index.php file without ansible_default_ipv4
+    shell: "{{ sudocmd }}echo \"<?PHP echo \\\"{{ _ip.stdout }}\\\" ?>\" >> /var/2_gb_disk/new_html/index.php" 
+    when: ansible_default_ipv4 is not defined
+  - name: Cemoving html dir
+    shell: "{{ sudocmd }}rm -rf   /var/www/html "
+  - name: Creating link to new html dir
+    shell: "{{ sudocmd }}ln -s /var/2_gb_disk/new_html /var/www/html"
+  handlers:
+    - name: restart apache
+      service: name=httpd state=restarted
